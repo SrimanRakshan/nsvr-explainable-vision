@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 DATA_DIR = Path("/home/Zoro/Documents/data/raw/clevr/CLEVR_v1.0/")
+OUTPUT_DATA_DIR = Path("/home/Zoro/Documents/data/processed")
 
 def load_scenes(split="train"):
     path = DATA_DIR / "scenes" / f"CLEVR_{split}_scenes.json"
@@ -58,7 +59,7 @@ if __name__ == "__main__":
         scenes = preprocess_scenes(split)
         questions = preprocess_questions(split)
 
-        save_jsonl(scenes, DATA_DIR / f"processed_{split}_scenes.jsonl")
-        save_jsonl(questions, DATA_DIR / f"processed_{split}_questions.jsonl")
+        save_jsonl(scenes, OUTPUT_DATA_DIR / f"processed_{split}_scenes.jsonl")
+        save_jsonl(questions, OUTPUT_DATA_DIR / f"processed_{split}_questions.jsonl")
 
     print("✅ Preprocessing done! Check processed JSONL files.")
