@@ -6,6 +6,10 @@ import math
 import os
 from pathlib import Path
 from typing import Tuple, Dict
+from tqdm import tqdm
+
+import sys, os
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 import torch
 import torch.nn as nn
@@ -46,7 +50,7 @@ def train_epoch(model, loader, opt, device, loss_fns, lambda_weights):
     total_loss = 0.0
     metrics = {"color":0,"shape":0,"material":0,"size":0}
     seen = 0
-    for imgs, labels in loader:
+    for imgs, labels in tqdm(loader, desc="Training", leave=False):
         imgs = imgs.to(device)
         lbls = {k: v.to(device) for k,v in labels.items()}
         out = model(imgs)
@@ -57,23 +61,26 @@ def train_epoch(model, loader, opt, device, loss_fns, lambda_weights):
         opt.zero_grad()
         loss.backward()
         opt.step()
+
         b = imgs.size(0)
         total_loss += loss.item() * b
         seen += b
-        # accumulate accuracies
         for k in metrics:
             metrics[k] += compute_accuracy(out[k].detach().cpu(), lbls[k].detach().cpu()) * b
+
     avg_loss = total_loss / seen
     accs = {k: metrics[k] / seen for k in metrics}
     return avg_loss, accs
 
+
+@torch.no_grad()
 @torch.no_grad()
 def eval_epoch(model, loader, device, loss_fns, lambda_weights):
     model.eval()
     total_loss = 0.0
     metrics = {"color":0,"shape":0,"material":0,"size":0}
     seen = 0
-    for imgs, labels in loader:
+    for imgs, labels in tqdm(loader, desc="Validation", leave=False):
         imgs = imgs.to(device)
         lbls = {k: v.to(device) for k,v in labels.items()}
         out = model(imgs)
@@ -81,11 +88,13 @@ def eval_epoch(model, loader, device, loss_fns, lambda_weights):
         for k, loss_fn in loss_fns.items():
             l = loss_fn(out[k], lbls[k]) * lambda_weights[k]
             loss = loss + l
+
         b = imgs.size(0)
         total_loss += loss.item() * b
         seen += b
         for k in metrics:
             metrics[k] += compute_accuracy(out[k].detach().cpu(), lbls[k].detach().cpu()) * b
+
     avg_loss = total_loss / seen
     accs = {k: metrics[k] / seen for k in metrics}
     return avg_loss, accs
@@ -130,6 +139,7 @@ def main(args):
     os.makedirs(args.save_dir, exist_ok=True)
 
     for epoch in range(1, args.epochs+1):
+        print(f"\n===== Epoch {epoch}/{args.epochs} =====")
         train_loss, train_accs = train_epoch(model, train_loader, optimizer, device, loss_fns, lambda_weights)
         val_loss, val_accs = eval_epoch(model, val_loader, device, loss_fns, lambda_weights)
         scheduler.step()
@@ -146,7 +156,7 @@ def main(args):
             best_val_acc = avg_val_acc
             best_path = Path(args.save_dir) / "best_model.pt"
             torch.save({"epoch":epoch, "model_state": model.state_dict(), "optimizer_state": optimizer.state_dict(), "vocab": VOCAB}, best_path)
-            print("Saved new best:", best_path)
+            print("✅ Saved new best:", best_path)
 
     # final vocab dump
     with open(Path(args.save_dir) / "vocab.json", "w") as f:
@@ -154,15 +164,16 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-root", type=str, default="/home/Zoro/Documents/data/raw/clevr/CLEVR_v1.0/", help="CLEVR_v1.0 directory")
+    parser.add_argument("--data-root", type=str, default=r"C:\Users\Sriman Rakshan N\Documents\Amrita\Project_Sem_V\data\raw\clevr\CLEVR_v1.0", help="CLEVR_v1.0 directory")
     parser.add_argument("--img-size", type=int, default=128)
-    parser.add_argument("--batch-size", type=int, default=64)
-    parser.add_argument("--epochs", type=int, default=12)
+    parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--num-workers", type=int, default=4)
     parser.add_argument("--save-dir", type=str, default="checkpoints")
     parser.add_argument("--seed", type=int, default=1337)
     parser.add_argument("--pretrained", action="store_true", help="use imagenet pretrained backbone")
     parser.add_argument("--embedding-dim", type=int, default=1024)
-    args = parser.parse_args()
+    args = parser.parse_args([])  # use defaults automatically
+
     main(args)
